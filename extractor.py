@@ -13,6 +13,14 @@ import re
 
 from rules import CATEGORIES
 
+# Narrations are untrusted text. Instruction-like content is never obeyed: it goes to a human.
+_INJECTION = re.compile(
+    r"ignore (all |the |any )?(previous|prior|above)|disregard|system prompt|classify (it |this )?as", re.I)
+
+
+def looks_like_injection(narration: str) -> bool:
+    return bool(_INJECTION.search(narration))
+
 KEYWORDS = {
     "contractor": ["contract", "labour", "manpower", "catering", "transport", "repair", "advertis",
                    "printing", "installation", "maintenance", "housekeeping", "security services"],
@@ -26,6 +34,8 @@ KEYWORDS = {
 
 
 def keyword_extract(narration: str):
+    if looks_like_injection(narration):
+        return None, "instruction-like text in narration -> escalate"
     t = narration.lower()
     hits = {c: [k for k in ks if k in t] for c, ks in KEYWORDS.items()}
     hits = {c: v for c, v in hits.items() if v}
@@ -49,6 +59,8 @@ Never give rates, sections or amounts. Reply as JSON: {{"category": "...", "evid
 
 def llm_extract(narration: str, model: str = None):
     """UNTESTED in the delivered run (no network to OpenRouter from the build sandbox)."""
+    if looks_like_injection(narration):
+        return None, "instruction-like text in narration -> escalate"
     import requests  # imported lazily so the baseline runs with no dependencies
 
     key = os.environ["OPENROUTER_API_KEY"]
